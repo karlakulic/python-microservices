@@ -5,11 +5,17 @@ from . import schemas, crud
 from .events.publisher import publish_user_created
 from .auth import create_access_token, get_current_user
 
-app = FastAPI(title="user-service", version="0.1.0")
+from fastapi.security import OAuth2PasswordRequestForm 
 
+app = FastAPI(
+    title="User Service (FastAPI + JWT)",
+    description="Mikroservis za registraciju, login i autorizaciju korisnika",
+    version="0.1.0")
 Base.metadata.create_all(bind=engine)
+@app.get("/healthz", tags=["Meta"], summary="Health check")
+def healthz():
+    return {"status": "ok"}
 
-@app.post("/users", response_model=schemas.UserRead, status_code=status.HTTP_201_CREATED)
 def create_user(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
     try:
         user = crud.create_user(db, user_in)
@@ -23,16 +29,19 @@ def create_user(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
 
     return user
 
-@app.post("/login")
-def login(email: str = Body(...), password: str = Body(...), db: Session = Depends(get_db)):
-    user = crud.get_user_by_email(db, email)
-    if not user or not crud.verify_password(password, user.hashed_password):
+
+@app.post("/login", tags=["Auth"], summary="User login")
+def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    user = crud.get_user_by_email(db, form_data.email)
+    if not user or not crud.verify_password(form_data.password, user.hashed_password):
+
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
     token = create_access_token({"sub": str(user.id)})
     return {"access_token": token, "token_type": "bearer"}
 
-@app.get("/users/{user_id}", response_model=schemas.UserRead)
+
+@app.get("/users/{user_id}", response_model=schemas.UserRead, tags=["Users"], summary="Get user by id (owner only)")
 def read_user(
     user_id: int,
     db: Session = Depends(get_db),
@@ -44,3 +53,7 @@ def read_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user
+
+@app.get("/me", response_model=schemas.UserRead, tags=["Auth"], summary="Get current logged-in user")
+def read_me(current_user = Depends(get_current_user)):
+    return current_user

@@ -10,3 +10,8 @@ class UserRead(BaseModel):
 
     class Config:
         from_attributes = True
+        
+class Login(BaseModel):
+    email: EmailStr
+    password: str
+
