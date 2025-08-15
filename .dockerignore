@@ -5,8 +5,10 @@ __pycache__/
 .env
 .venv/
 venv/
+.venv
 .git/
 .vscode/
 .idea/
 dist/
 build/
+*.db
