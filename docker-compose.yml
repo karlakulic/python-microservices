@@ -30,3 +30,34 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_started
+
+  postgres_products:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: product_service
+    ports:
+      - "5434:5432"
+    volumes:
+      - products_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d product_service"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  product-service:
+    build: ./product-service
+    env_file:
+      - ./product-service/.env
+    ports:
+      - "8002:8002"
+    depends_on:
+      postgres_products:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+
+volumes:
+  products_db_data:

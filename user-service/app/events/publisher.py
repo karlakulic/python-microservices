@@ -1,33 +1,38 @@
-import os
-import json
+import os, json, time
 import pika
-from dotenv import load_dotenv
+from app.settings import settings
 
-load_dotenv()
-
-RABBITMQ_URL = os.getenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
+EXCHANGE = "events"
+ROUTING_USER_CREATED = "user.created"
 
 def _open_channel():
-    params = pika.URLParameters(RABBITMQ_URL)
+    params = pika.URLParameters(settings.RABBITMQ_URL)
     conn = pika.BlockingConnection(params)
     ch = conn.channel()
-    ch.exchange_declare(exchange="users", exchange_type="topic", durable=True)
+    ch.exchange_declare(exchange=EXCHANGE, exchange_type="topic", durable=True)
     return conn, ch
 
-def publish_user_created(payload: dict):
-    conn, ch = _open_channel()
-    try:
-        ch.basic_publish(
-            exchange="users",
-            routing_key="user.created",
-            body=json.dumps(payload).encode("utf-8"),
-            properties=pika.BasicProperties(
-                content_type="application/json",
-                delivery_mode=2,  
-            ),
-        )
-    finally:
+def publish_user_created(payload: dict, retries: int = 5, backoff_s: float = 1.0):
+    for attempt in range(1, retries+1):
         try:
-            ch.close()
-        finally:
-            conn.close()
+            conn, ch = _open_channel()
+            try:
+                ch.basic_publish(
+                    exchange=EXCHANGE,
+                    routing_key=ROUTING_USER_CREATED,
+                    body=json.dumps(payload).encode("utf-8"),
+                    properties=pika.BasicProperties(
+                        content_type="application/json",
+                        delivery_mode=2,  
+                    ),
+                )
+            finally:
+                try: ch.close()
+                finally: conn.close()
+            print("[events] published: user.created")
+            return
+        except Exception as e:
+            if attempt == retries:
+                print(f"[events] publish failed after {retries} attempts: {e}")
+                raise
+            time.sleep(1)
