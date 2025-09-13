@@ -6,7 +6,7 @@ class Product(Base):
     __tablename__ = "products"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String, nullable=False, index=True)
+    user_id = Column(String, nullable=False)
     name = Column(String(255), nullable=False)
     sku = Column(String(64), nullable=False)
     description = Column(Text, nullable=True)

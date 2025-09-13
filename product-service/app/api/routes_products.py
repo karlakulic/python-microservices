@@ -7,6 +7,8 @@ from pydantic import BaseModel
 from app.api.deps import db_session, get_user_id
 from app import models
 from app.schemas import ProductCreate, ProductRead, ProductUpdate, StockAdjust
+from app.messaging.publisher import publish_product_created
+
 
 router = APIRouter(prefix="/api/products", tags=["products"])
 
@@ -63,7 +65,11 @@ def create_product(payload: ProductCreate, db: Session = Depends(db_session), us
     db.add(product)
     db.commit()
     db.refresh(product)
-    return product
+    try:
+        publish_product_created(product)
+    except Exception as e:
+        print(f"[events] WARN publish product.created failed: {e}")
+    return ProductRead.model_validate(product) 
 
 @router.get("/{product_id}", response_model=ProductRead)
 def get_product(product_id: str, db: Session = Depends(db_session), user_id: str = Depends(get_user_id)):
@@ -74,7 +80,7 @@ def get_product(product_id: str, db: Session = Depends(db_session), user_id: str
     )
     if not product:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found.")
-    return product
+    return ProductRead.model_validate(product) 
 
 @router.patch("/{product_id}", response_model=ProductRead)
 def update_product(
@@ -128,7 +134,7 @@ def update_product(
     db.add(product)
     db.commit()
     db.refresh(product)
-    return product
+    return ProductRead.model_validate(product) 
 
 @router.delete("/{product_id}", response_model=ProductRead, status_code=status.HTTP_200_OK)
 def delete_product(product_id: str, db: Session = Depends(db_session), user_id: str = Depends(get_user_id) ):
@@ -145,7 +151,7 @@ def delete_product(product_id: str, db: Session = Depends(db_session), user_id: 
     db.add(product)
     db.commit()
     db.refresh(product)
-    return product
+    return ProductRead.model_validate(product) 
 
 @router.post("/{product_id}/stock-adjust", response_model=ProductRead)
 def adjust_stock(product_id: str, payload: StockAdjust, db: Session = Depends(db_session), user_id: str = Depends(get_user_id)):
@@ -165,6 +171,6 @@ def adjust_stock(product_id: str, payload: StockAdjust, db: Session = Depends(db
     db.add(product)
     db.commit()
     db.refresh(product)
-    return product
+    return ProductRead.model_validate(product) 
 
 

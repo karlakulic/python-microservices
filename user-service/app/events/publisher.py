@@ -35,4 +35,4 @@ def publish_user_created(payload: dict, retries: int = 5, backoff_s: float = 1.0
             if attempt == retries:
                 print(f"[events] publish failed after {retries} attempts: {e}")
                 raise
-            time.sleep(1)
+            time.sleep(backoff_s)

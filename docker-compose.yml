@@ -18,6 +18,11 @@ services:
     ports:
       - "5672:5672"
       - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   user-service:
     build: ./user-service
@@ -29,7 +34,7 @@ services:
       postgres_users:
         condition: service_healthy
       rabbitmq:
-        condition: service_started
+        condition: service_healthy
 
   postgres_products:
     image: postgres:16
@@ -57,7 +62,7 @@ services:
       postgres_products:
         condition: service_healthy
       rabbitmq:
-        condition: service_started
+        condition: service_healthy
 
 volumes:
   products_db_data:

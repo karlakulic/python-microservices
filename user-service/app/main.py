@@ -4,7 +4,7 @@ from .database import Base, engine, get_db
 from . import schemas, crud
 from .events.publisher import publish_user_created
 from .auth import create_access_token, get_current_user
-
+from app.events.consumer import start_consumer_in_thread
 from fastapi.security import OAuth2PasswordRequestForm 
 
 app = FastAPI(
@@ -61,3 +61,7 @@ def read_user(
 @app.get("/me", response_model=schemas.UserRead, tags=["Auth"], summary="Get current logged-in user")
 def read_me(current_user = Depends(get_current_user)):
     return current_user
+
+@app.on_event("startup")
+def _startup_events():
+    start_consumer_in_thread()
