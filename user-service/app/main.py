@@ -1,10 +1,10 @@
-from fastapi import FastAPI, Depends, HTTPException, status, Body
+from fastapi import FastAPI, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from .database import Base, engine, get_db
 from . import schemas, crud
 from .events.publisher import publish_user_created
 from .auth import create_access_token, get_current_user
-
+from app.events.consumer import start_consumer_in_thread
 from fastapi.security import OAuth2PasswordRequestForm 
 
 app = FastAPI(
@@ -12,11 +12,11 @@ app = FastAPI(
     description="Mikroservis za registraciju, login i autorizaciju korisnika",
     version="0.1.0")
 Base.metadata.create_all(bind=engine)
-@app.get("/healthz", tags=["Meta"], summary="Health check")
-def healthz():
-    return {"status": "ok"}
+@app.get("/health", tags=["Meta"], summary="Health check")
+def health():
+    return {"status": "ok", "service": "user-service"}
 
-def create_user(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
+def create_user(user_in: schemas.UserCreate, db: Session):
     try:
         user = crud.create_user(db, user_in)
     except ValueError as e:
@@ -29,10 +29,14 @@ def create_user(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
 
     return user
 
+@app.post("/users", response_model=schemas.UserRead, status_code=status.HTTP_201_CREATED,
+          tags=["Users"], summary="Register user")
+def register_user(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
+    return create_user(user_in, db)
 
 @app.post("/login", tags=["Auth"], summary="User login")
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = crud.get_user_by_email(db, form_data.email)
+    user = crud.get_user_by_email(db, form_data.username)
     if not user or not crud.verify_password(form_data.password, user.hashed_password):
 
         raise HTTPException(status_code=401, detail="Invalid credentials")
@@ -57,3 +61,7 @@ def read_user(
 @app.get("/me", response_model=schemas.UserRead, tags=["Auth"], summary="Get current logged-in user")
 def read_me(current_user = Depends(get_current_user)):
     return current_user
+
+@app.on_event("startup")
+def _startup_events():
+    start_consumer_in_thread()
